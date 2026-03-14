@@ -1,0 +1,217 @@
+#include "thediva.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+#include <stdio.h>
+
+struct the_diva_state_t {
+    the_diva_chart_t* chart;
+    the_diva_state_config_t* config;
+};
+
+typedef struct the_diva_target_judgement_events_t {
+    the_diva_target_judgement_event_t value;
+    struct the_diva_target_judgement_events_t *next; 
+} the_diva_target_judgement_events_t; 
+
+the_diva_target_judgement_events_t* judgement_events = NULL;
+the_diva_target_judgement_events_t* judgement_events_end = NULL;
+
+the_diva_result_t queue_judgement_event(the_diva_target_t* target, uint32_t wrong)
+{
+    the_diva_target_judgement_events_t* new_judgement_event = (the_diva_target_judgement_events_t*)malloc(sizeof(the_diva_target_judgement_events_t));
+    if (new_judgement_event == NULL) return THE_DIVA_RESULT_ALLOCATION_FAILED;
+
+    new_judgement_event->value.target = target;
+    new_judgement_event->value.wrong = wrong;
+    new_judgement_event->next = NULL;
+
+    if (judgement_events_end == NULL)
+    {
+        judgement_events = new_judgement_event;
+        judgement_events_end = new_judgement_event;
+    }
+    else
+    {
+        judgement_events_end->next = new_judgement_event;
+        judgement_events_end = judgement_events_end->next;
+    }
+
+    return THE_DIVA_RESULT_OK;
+}
+
+the_diva_result_t the_diva_state_config_fill_default(the_diva_state_config_t* out_state_config)
+{
+    if (out_state_config == NULL) return THE_DIVA_RESULT_INVALID_ARGUMENT;
+
+    out_state_config->hit_window.cool = 33333; // todo: make these more readable. This is about 2 frames at 60 fps
+    out_state_config->hit_window.fine = 66667;
+    out_state_config->hit_window.safe = 116667;
+    out_state_config->hit_window.sad = 166667;
+
+    out_state_config->calibration_offset = 0;
+
+    out_state_config->lookahead_time = THE_DIVA_SEC(2);
+
+    return THE_DIVA_RESULT_OK;
+}
+
+the_diva_result_t the_diva_state_create(the_diva_chart_t* chart, the_diva_state_config_t* config, the_diva_state_t** out_state)
+{
+    if (out_state == NULL) return THE_DIVA_RESULT_INVALID_ARGUMENT;
+    if (chart == NULL) return THE_DIVA_RESULT_INVALID_ARGUMENT;
+    if (config == NULL) return THE_DIVA_RESULT_INVALID_ARGUMENT;
+    
+    the_diva_state_t* state = malloc(sizeof(the_diva_state_t));
+    if (state == NULL) return THE_DIVA_RESULT_ALLOCATION_FAILED;
+
+    state->chart = chart;
+    state->config = config;
+
+    *out_state = state;
+    return THE_DIVA_RESULT_OK;
+}
+
+void the_diva_state_destroy(the_diva_state_t** state)
+{
+    free(*state);
+    *state = NULL;
+}
+
+the_diva_result_t the_diva_state_tick(the_diva_state_t* state, the_diva_time_t time)
+{
+    the_diva_time_t current_time = time + state->config->calibration_offset;
+
+    for (size_t i = 0; i < state->chart->targets_count; ++i)
+    {
+        the_diva_target_t* target = &state->chart->targets[i];
+
+        if (target->judgement != THE_DIVA_TARGET_JUDGEMENT_NONE) continue;
+
+        the_diva_time_t deadline = target->time + state->config->hit_window.sad;
+
+        if (current_time > deadline) {
+            target->judgement = THE_DIVA_TARGET_JUDGEMENT_MISS;
+            queue_judgement_event(target, THE_DIVA_FALSE);
+            continue;
+        }
+    }
+
+    return THE_DIVA_RESULT_OK;
+}
+
+the_diva_result_t the_diva_state_press(the_diva_state_t* state, the_diva_button_type_t button, the_diva_time_t time)
+{
+    the_diva_time_t current_time = time + state->config->calibration_offset;
+
+    for (size_t i = 0; i < state->chart->targets_count; ++i)
+    {
+        the_diva_target_t* target = &state->chart->targets[i];
+        if (current_time > target->time + state->config->hit_window.sad) continue;
+        if (target->judgement != THE_DIVA_TARGET_JUDGEMENT_NONE) continue;
+
+        the_diva_time_t window = labs(current_time - target->time);
+    
+        if (window > state->config->hit_window.sad) return THE_DIVA_RESULT_OK;
+
+        if (window <= state->config->hit_window.cool) target->judgement = THE_DIVA_TARGET_JUDGEMENT_COOL;
+        else if (window <= state->config->hit_window.fine) target->judgement = THE_DIVA_TARGET_JUDGEMENT_FINE;
+        else if (window <= state->config->hit_window.safe) target->judgement = THE_DIVA_TARGET_JUDGEMENT_SAFE;
+        else if (window <= state->config->hit_window.sad) target->judgement = THE_DIVA_TARGET_JUDGEMENT_SAD;
+
+        the_diva_bool_t wrong = target->button_type != button;
+        queue_judgement_event(target, wrong);
+
+        return THE_DIVA_RESULT_OK;
+    }
+
+    return THE_DIVA_RESULT_OK;
+}
+
+the_diva_result_t the_diva_state_judgement_event_poll(the_diva_state_t* state, the_diva_target_judgement_event_t* out_target_judgement_event)
+{
+    if (judgement_events == NULL) return THE_DIVA_RESULT_NO_EVENT;
+    
+    out_target_judgement_event->target = judgement_events->value.target;
+    out_target_judgement_event->wrong = judgement_events->value.wrong;
+
+    the_diva_target_judgement_events_t *next = judgement_events->next;
+    free(judgement_events);
+    judgement_events = next;
+    if (judgement_events == NULL) judgement_events_end = NULL;
+
+    return THE_DIVA_RESULT_OK;
+}
+
+int main(void)
+{
+    the_diva_chart_t chart = {
+        .duration = THE_DIVA_SEC(10),
+        .targets = malloc(sizeof(the_diva_target_t) * 5),
+        .targets_count = 5
+    };
+
+    chart.targets[0] = (the_diva_target_t){
+        .id = 0,
+        .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
+        .time = THE_DIVA_SEC(1),
+        .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
+    };
+
+    chart.targets[1] = (the_diva_target_t){
+        .id = 1,
+        .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
+        .time = THE_DIVA_SEC(2),
+        .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
+    };
+
+    chart.targets[2] = (the_diva_target_t){
+        .id = 2,
+        .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
+        .time = THE_DIVA_SEC(3),
+        .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
+    };
+
+    chart.targets[3] = (the_diva_target_t){
+        .id = 3,
+        .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
+        .time = THE_DIVA_SEC(4),
+        .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
+    };
+
+    chart.targets[4] = (the_diva_target_t){
+        .id = 4,
+        .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
+        .time = THE_DIVA_SEC(5),
+        .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
+    };
+
+    the_diva_state_config_t config;
+    the_diva_state_config_fill_default(&config);
+
+    the_diva_state_t* state = NULL;
+    the_diva_state_create(&chart, &config, &state);
+
+    the_diva_target_judgement_event_t event;
+
+    the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CROSS, THE_DIVA_SEC(1) - config.hit_window.safe);
+    the_diva_result_t result = the_diva_state_judgement_event_poll(state, &event);
+    
+    printf("%d -> %d - %d\n", event.target->id, event.wrong, event.target->judgement);
+
+    the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CIRCLE, THE_DIVA_SEC(2) + config.hit_window.fine);
+    result = the_diva_state_judgement_event_poll(state, &event);
+    
+    printf("%d -> %d - %d\n", event.target->id, event.wrong, event.target->judgement);
+
+    the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CIRCLE, THE_DIVA_SEC(3) + config.hit_window.cool);
+    result = the_diva_state_judgement_event_poll(state, &event);
+    
+    printf("%d -> %d - %d\n", event.target->id, event.wrong, event.target->judgement);
+
+    the_diva_state_destroy(&state);
+    free(chart.targets);
+
+    return 0;
+}
