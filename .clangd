@@ -1,2 +1,0 @@
-CompileFlags:
-  Add: [-I/home/alurafes/development/webdiva/webdiva-core/inc, -std=c++20]
