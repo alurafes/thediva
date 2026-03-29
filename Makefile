@@ -1,14 +1,8 @@
-CC = g++
-FLAGS = -Wall -std=c++20 -ggdb -Iinc
+CC = gcc
+FLAGS = -Wall -Werror -ggdb
 
-main: build/main.o build/dsc.o build/engine.o
-	$(CC) $(FLAGS) -o build/main build/main.o build/dsc.o build/engine.o
+main: build/thediva.o
+	$(CC) $(FLAGS) -o build/thediva build/thediva.o
 
-build/engine.o: src/engine.cpp
-	$(CC) $(FLAGS) -c -o build/engine.o src/engine.cpp
-
-build/dsc.o: src/dsc/dsc.cpp
-	$(CC) $(FLAGS) -c -o build/dsc.o src/dsc/dsc.cpp
-
-build/main.o: src/main.cpp
-	$(CC) $(FLAGS) -c -o build/main.o src/main.cpp
+build/thediva.o: thediva.c
+	$(CC) $(FLAGS) -c -o build/thediva.o thediva.c

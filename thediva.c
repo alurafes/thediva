@@ -105,6 +105,7 @@ the_diva_result_t the_diva_state_press(the_diva_state_t* state, the_diva_button_
 {
     the_diva_time_t current_time = time + state->config->calibration_offset;
 
+    // todo: instead of iterating the chart every time i should keep some index
     for (size_t i = 0; i < state->chart->targets_count; ++i)
     {
         the_diva_target_t *target = &state->chart->targets[i];
