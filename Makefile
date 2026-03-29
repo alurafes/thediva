@@ -1,7 +1,7 @@
 CC = gcc
 FLAGS = -Wall -Werror -ggdb
 
-main: build/thediva.o
+thediva: build/thediva.o
 	$(CC) $(FLAGS) -o build/thediva build/thediva.o
 
 build/thediva.o: thediva.c
