@@ -34,7 +34,7 @@ typedef int64_t the_diva_time_t;
 #define THE_DIVA_SEC(s)   ((the_diva_time_t)((s) * 1000000LL))
 
 typedef enum {
-    THE_DIVA_BUTTON_TYPE_TRIANGE,
+    THE_DIVA_BUTTON_TYPE_TRIANGLE,
     THE_DIVA_BUTTON_TYPE_CIRCLE,
     THE_DIVA_BUTTON_TYPE_CROSS,
     THE_DIVA_BUTTON_TYPE_SQUARE,
@@ -56,6 +56,8 @@ typedef struct {
     the_diva_button_type_t button_type;
     the_diva_time_t time;
     the_diva_target_judgement_t judgement;
+    size_t chord_start;
+    size_t chord_size;
 } the_diva_target_t;
 
 typedef struct {

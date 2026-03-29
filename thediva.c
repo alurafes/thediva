@@ -107,21 +107,55 @@ the_diva_result_t the_diva_state_press(the_diva_state_t* state, the_diva_button_
 
     for (size_t i = 0; i < state->chart->targets_count; ++i)
     {
-        the_diva_target_t* target = &state->chart->targets[i];
+        the_diva_target_t *target = &state->chart->targets[i];
         if (current_time > target->time + state->config->hit_window.sad) continue;
         if (target->judgement != THE_DIVA_TARGET_JUDGEMENT_NONE) continue;
 
         the_diva_time_t window = labs(current_time - target->time);
-    
-        if (window > state->config->hit_window.sad) return THE_DIVA_RESULT_OK;
+        if (window > state->config->hit_window.sad) 
+        {
+            printf("TIME: %zuns. Early return (pressed %d. Last id in queue: %d)\n", time, button, target->id);
+            return THE_DIVA_RESULT_OK;
+        }
 
-        if (window <= state->config->hit_window.cool) target->judgement = THE_DIVA_TARGET_JUDGEMENT_COOL;
-        else if (window <= state->config->hit_window.fine) target->judgement = THE_DIVA_TARGET_JUDGEMENT_FINE;
-        else if (window <= state->config->hit_window.safe) target->judgement = THE_DIVA_TARGET_JUDGEMENT_SAFE;
-        else if (window <= state->config->hit_window.sad) target->judgement = THE_DIVA_TARGET_JUDGEMENT_SAD;
+        the_diva_target_judgement_t judgement;
+        if (window <= state->config->hit_window.cool) judgement = THE_DIVA_TARGET_JUDGEMENT_COOL;
+        else if (window <= state->config->hit_window.fine) judgement = THE_DIVA_TARGET_JUDGEMENT_FINE;
+        else if (window <= state->config->hit_window.safe) judgement = THE_DIVA_TARGET_JUDGEMENT_SAFE;
+        else if (window <= state->config->hit_window.sad) judgement = THE_DIVA_TARGET_JUDGEMENT_SAD;
 
-        the_diva_bool_t wrong = target->button_type != button;
-        queue_judgement_event(target, wrong);
+        the_diva_target_t *chord = &state->chart->targets[target->chord_start];
+        size_t chord_size = target->chord_size;
+
+        the_diva_bool_t button_not_in_chord = THE_DIVA_TRUE;
+        for (size_t j = 0; j < chord_size; ++j)
+        {
+            the_diva_target_t *other_target = &chord[j];
+            if (other_target->judgement != THE_DIVA_TARGET_JUDGEMENT_NONE) continue;
+            if (other_target->button_type != button) continue;
+
+            button_not_in_chord = THE_DIVA_FALSE;
+
+            other_target->judgement = judgement;
+            queue_judgement_event(other_target, THE_DIVA_FALSE);
+            break;
+        }
+
+        // fail entire chord in this case
+        // right now i am judging all notes in the chord with the same judgement. Not sure how it works in the original game
+        if (button_not_in_chord == THE_DIVA_TRUE)
+        {
+            for (size_t j = 0; j < chord_size; ++j)
+            {
+                the_diva_target_t *other_target = &chord[j];
+                if (other_target->judgement != THE_DIVA_TARGET_JUDGEMENT_NONE) continue;
+                
+                printf("id: %d\n", other_target->id);
+                
+                other_target->judgement = judgement;
+                queue_judgement_event(other_target, THE_DIVA_TRUE);
+            }
+        }
 
         return THE_DIVA_RESULT_OK;
     }
@@ -157,13 +191,17 @@ int main(void)
         .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
         .time = THE_DIVA_SEC(1),
         .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
+        .chord_start = 0,
+        .chord_size = 2,
     };
 
     chart.targets[1] = (the_diva_target_t){
         .id = 1,
-        .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
-        .time = THE_DIVA_SEC(2),
+        .button_type = THE_DIVA_BUTTON_TYPE_CROSS,
+        .time = THE_DIVA_SEC(1),
         .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
+        .chord_start = 0,
+        .chord_size = 2,
     };
 
     chart.targets[2] = (the_diva_target_t){
@@ -171,6 +209,8 @@ int main(void)
         .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
         .time = THE_DIVA_SEC(3),
         .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
+        .chord_start = 2,
+        .chord_size = 1,
     };
 
     chart.targets[3] = (the_diva_target_t){
@@ -178,6 +218,8 @@ int main(void)
         .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
         .time = THE_DIVA_SEC(4),
         .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
+        .chord_start = 3,
+        .chord_size = 1,
     };
 
     chart.targets[4] = (the_diva_target_t){
@@ -185,6 +227,8 @@ int main(void)
         .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
         .time = THE_DIVA_SEC(5),
         .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
+        .chord_start = 4,
+        .chord_size = 1,
     };
 
     the_diva_state_config_t config;
@@ -195,18 +239,20 @@ int main(void)
 
     the_diva_target_judgement_event_t event;
 
-    the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CROSS, THE_DIVA_SEC(1) - config.hit_window.safe);
-    the_diva_result_t result = the_diva_state_judgement_event_poll(state, &event);
+    the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_TRIANGLE, THE_DIVA_SEC(1) - config.hit_window.safe);
+    the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CIRCLE, THE_DIVA_SEC(1) - config.hit_window.fine + THE_DIVA_MS(5));
+    while (the_diva_state_judgement_event_poll(state, &event) != THE_DIVA_RESULT_NO_EVENT)
+    {
+        printf("CHORD %d -> %d - %d\n", event.target->id, event.wrong, event.target->judgement);
+    }
+
+    the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CIRCLE, THE_DIVA_SEC(3) + config.hit_window.fine);
+    the_diva_state_judgement_event_poll(state, &event);
     
     printf("%d -> %d - %d\n", event.target->id, event.wrong, event.target->judgement);
 
-    the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CIRCLE, THE_DIVA_SEC(2) + config.hit_window.fine);
-    result = the_diva_state_judgement_event_poll(state, &event);
-    
-    printf("%d -> %d - %d\n", event.target->id, event.wrong, event.target->judgement);
-
-    the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CIRCLE, THE_DIVA_SEC(3) + config.hit_window.cool);
-    result = the_diva_state_judgement_event_poll(state, &event);
+    the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CIRCLE, THE_DIVA_SEC(4) + config.hit_window.cool);
+    the_diva_state_judgement_event_poll(state, &event);
     
     printf("%d -> %d - %d\n", event.target->id, event.wrong, event.target->judgement);
 
