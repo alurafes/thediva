@@ -3,6 +3,7 @@
 
 #include <time.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "dsc.h"
 
@@ -110,7 +111,7 @@ int main(int argc, char** argv)
                 .chord_size = 1,
                 .x = command->parameters[1] / 1000.0f,
                 .y = command->parameters[2] / 1000.0f,
-                .angle = command->parameters[3] / 1000.0f,
+                .angle = command->parameters[3] / 1000.0f * 3.14f / 180.f, // PI precision
                 .distance = command->parameters[4] / 1000.0f,
                 .amplitude = command->parameters[5],
                 .frequency = command->parameters[6],
@@ -199,18 +200,41 @@ int main(int argc, char** argv)
     the_diva_state_t* state = NULL;
     the_diva_state_create(&chart, &config, &state);
 
-    InitWindow(1280, 720, "THE DIVA - raylib");
+    InitWindow(480, 272, "THE DIVA - raylib");
     game_clock_init();
     
     while (!WindowShouldClose())
     {
         the_diva_time_t time = game_clock_get_current_time_us();
 
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        {
+            printf("PRESS AT %ld\n\n", time);
+            the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_TRIANGLE, time);
+            printf("END PRESS AT %ld\n\n", time);
+        }
+
         the_diva_state_tick(state, time);
 
         BeginDrawing();
         {
             ClearBackground(BLACK);
+
+            for (size_t i = 0; i < targets.count; ++i)
+            {
+                the_diva_target_t *target = &targets.items[i];
+                if (target->time > time) break;
+                if (target->judgement != THE_DIVA_TARGET_JUDGEMENT_NONE) continue;
+                
+                DrawRectangle(target->x - 5, target->y - 5, 10, 10, target->chord_size == 1 ? GREEN : PURPLE);
+
+                float progress = 1.0f - (time - target->time) / (float)the_diva_state_current_flying_time(state);
+                float x = progress * target->distance * sinf(target->angle) + target->x;
+                float y = -progress * target->distance * cosf(target->angle) + target->y;
+                DrawRectangle(x - 5, y - 5, 10, 10, RED);
+                DrawText(TextFormat("%.2f", progress), x - 5, y - 15, 10, GREEN);
+            }
+
             DrawText("THE DIVA - raylib", 0, 0, 20, WHITE);
             DrawText(TextFormat("%lld", time), 0, 30, 20, WHITE);
         }

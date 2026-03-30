@@ -133,21 +133,19 @@ void the_diva_state_tick(the_diva_state_t* state, the_diva_time_t time)
 
 void the_diva_state_press(the_diva_state_t* state, the_diva_button_type_t button, the_diva_time_t time)
 {
-    the_diva_time_t current_time = time + state->config->calibration_offset;
+    the_diva_time_t input_time = time + state->config->calibration_offset;
 
     // todo: instead of iterating the chart every time i should keep some index
     for (size_t i = 0; i < state->chart->targets_count; ++i)
     {
         the_diva_target_t *target = &state->chart->targets[i];
-        if (current_time > target->time + state->config->hit_window.sad) continue;
+        if (input_time > target->time + state->current_flying_time + state->config->hit_window.sad) continue;
         if (target->judgement != THE_DIVA_TARGET_JUDGEMENT_NONE) continue;
 
-        the_diva_time_t window = labs(current_time - target->time + state->current_flying_time);
-        if (window > state->config->hit_window.sad) 
-        {
-            printf("TIME: %zuns. Early return (pressed %d. Last id in queue: %d)\n", time, button, target->id);
-            return;
-        }
+        the_diva_time_t window = llabs(input_time - (target->time + state->current_flying_time));
+        printf("Input Time: %ld | Target time end: %ld | Window: %ld | Chord size: %zu\n", input_time, target->time + state->current_flying_time, window, target->chord_size);
+
+        if (window > state->config->hit_window.sad) return;
 
         the_diva_target_judgement_t judgement;
         if (window <= state->config->hit_window.cool) judgement = THE_DIVA_TARGET_JUDGEMENT_COOL;
@@ -169,7 +167,7 @@ void the_diva_state_press(the_diva_state_t* state, the_diva_button_type_t button
 
             other_target->judgement = judgement;
             queue_judgement_event(other_target, THE_DIVA_FALSE);
-            break;
+            return;
         }
 
         // fail entire chord in this case
@@ -185,6 +183,7 @@ void the_diva_state_press(the_diva_state_t* state, the_diva_button_type_t button
                 
                 other_target->judgement = judgement;
                 queue_judgement_event(other_target, THE_DIVA_TRUE);
+                return;
             }
         }
     }
@@ -209,87 +208,3 @@ the_diva_result_t the_diva_state_judgement_event_poll(the_diva_state_t* state, t
 
     return THE_DIVA_RESULT_OK;
 }
-
-// int main(void)
-// {
-//     the_diva_chart_t chart = {
-//         .duration = THE_DIVA_SEC(10),
-//         .targets = malloc(sizeof(the_diva_target_t) * 5),
-//         .targets_count = 5
-//     };
-
-//     chart.targets[0] = (the_diva_target_t){
-//         .id = 0,
-//         .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
-//         .time = THE_DIVA_SEC(1),
-//         .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
-//         .chord_start = 0,
-//         .chord_size = 2,
-//     };
-
-//     chart.targets[1] = (the_diva_target_t){
-//         .id = 1,
-//         .button_type = THE_DIVA_BUTTON_TYPE_CROSS,
-//         .time = THE_DIVA_SEC(1),
-//         .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
-//         .chord_start = 0,
-//         .chord_size = 2,
-//     };
-
-//     chart.targets[2] = (the_diva_target_t){
-//         .id = 2,
-//         .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
-//         .time = THE_DIVA_SEC(3),
-//         .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
-//         .chord_start = 2,
-//         .chord_size = 1,
-//     };
-
-//     chart.targets[3] = (the_diva_target_t){
-//         .id = 3,
-//         .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
-//         .time = THE_DIVA_SEC(4),
-//         .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
-//         .chord_start = 3,
-//         .chord_size = 1,
-//     };
-
-//     chart.targets[4] = (the_diva_target_t){
-//         .id = 4,
-//         .button_type = THE_DIVA_BUTTON_TYPE_CIRCLE,
-//         .time = THE_DIVA_SEC(5),
-//         .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
-//         .chord_start = 4,
-//         .chord_size = 1,
-//     };
-
-//     the_diva_state_config_t config;
-//     the_diva_state_config_fill_default(&config);
-
-//     the_diva_state_t* state = NULL;
-//     the_diva_state_create(&chart, &config, &state);
-
-//     the_diva_target_judgement_event_t event;
-
-//     the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_TRIANGLE, THE_DIVA_SEC(1) - config.hit_window.safe);
-//     the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CIRCLE, THE_DIVA_SEC(1) - config.hit_window.fine + THE_DIVA_MS(5));
-//     while (the_diva_state_judgement_event_poll(state, &event) != THE_DIVA_RESULT_NO_EVENT)
-//     {
-//         printf("CHORD %d -> %d - %d\n", event.target->id, event.wrong, event.target->judgement);
-//     }
-
-//     the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CIRCLE, THE_DIVA_SEC(3) + config.hit_window.fine);
-//     the_diva_state_judgement_event_poll(state, &event);
-    
-//     printf("%d -> %d - %d\n", event.target->id, event.wrong, event.target->judgement);
-
-//     the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CIRCLE, THE_DIVA_SEC(4) + config.hit_window.cool);
-//     the_diva_state_judgement_event_poll(state, &event);
-    
-//     printf("%d -> %d - %d\n", event.target->id, event.wrong, event.target->judgement);
-
-//     the_diva_state_destroy(&state);
-//     free(chart.targets);
-
-//     return 0;
-// }
