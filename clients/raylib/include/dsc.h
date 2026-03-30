@@ -12,6 +12,7 @@ typedef enum {
 } the_diva_dsc_result_t;
 
 typedef enum {
+    THE_DIVA_DSC_OPCODE_END = 0x0,
     THE_DIVA_DSC_OPCODE_TIME = 0x01,
     THE_DIVA_DSC_OPCODE_TARGET = 0x06,
     THE_DIVA_DSC_OPCODE_LYRIC = 0x18,
