@@ -103,7 +103,6 @@ void judge_missed_notes(the_diva_state_t* state)
 
         if (state->current_time > deadline) {
             target->judgement = THE_DIVA_TARGET_JUDGEMENT_MISS;
-            printf("MISSED TARGET ID: %d\n", target->id);
             queue_judgement_event(target, THE_DIVA_FALSE);
             continue;
         }
@@ -118,7 +117,6 @@ void process_flying_time_change(the_diva_state_t* state)
         the_diva_flying_time_change_t *flying_time_change = &state->chart->flying_time_changes[i];
         if (flying_time_change->time < state->current_time) continue;
         state->current_flying_time = flying_time_change->flying_time;
-        printf("SET NEW FLYING TIME: %ld\n", state->current_flying_time);
         state->flying_time_change_index = i + 1;
         return; 
     }
@@ -143,8 +141,6 @@ void the_diva_state_press(the_diva_state_t* state, the_diva_button_type_t button
         if (target->judgement != THE_DIVA_TARGET_JUDGEMENT_NONE) continue;
 
         the_diva_time_t window = llabs(input_time - (target->time + state->current_flying_time));
-        printf("Input Time: %ld | Target time end: %ld | Window: %ld | Chord size: %zu\n", input_time, target->time + state->current_flying_time, window, target->chord_size);
-
         if (window > state->config->hit_window.sad) return;
 
         the_diva_target_judgement_t judgement;
@@ -178,9 +174,6 @@ void the_diva_state_press(the_diva_state_t* state, the_diva_button_type_t button
             {
                 the_diva_target_t *other_target = &chord[j];
                 if (other_target->judgement != THE_DIVA_TARGET_JUDGEMENT_NONE) continue;
-                
-                printf("id: %d\n", other_target->id);
-                
                 other_target->judgement = judgement;
                 queue_judgement_event(other_target, THE_DIVA_TRUE);
                 return;
