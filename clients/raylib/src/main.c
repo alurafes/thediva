@@ -228,11 +228,13 @@ int main(int argc, char** argv)
 
                 float progress = 1.0f - (time - target->time) / (float)the_diva_state_current_flying_time(state);
 
-                float x = target->x + progress * target->distance * sinf(target->angle);
-                float y = target->y - progress * target->distance * cosf(target->angle);
-                
-                DrawRectangle(x - 5, y - 5, 10, 10, RED);
-                DrawText(TextFormat("%.2f", target->angle), x - 5, y - 15, 14, YELLOW);
+                float x = progress * target->distance;
+                float y = sin(progress * PI * target->frequency) / 36.0f * target->amplitude;
+
+                float rotated_x = target->x + sin(target->angle) * x + cos(target->angle) * y;
+                float rotated_y = target->y - cos(target->angle) * x + sin(target->angle) * y;
+
+                DrawRectangle(rotated_x - 5, rotated_y - 5, 10, 10, RED);
             }
 
             DrawText("THE DIVA - raylib", 0, 0, 20, WHITE);
