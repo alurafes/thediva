@@ -34,7 +34,7 @@ typedef int64_t the_diva_time_t;
 #define THE_DIVA_SEC(s)   ((the_diva_time_t)((s) * 1000000LL))
 
 typedef enum {
-    THE_DIVA_BUTTON_TYPE_TRIANGLE,
+    THE_DIVA_BUTTON_TYPE_TRIANGLE = 0,
     THE_DIVA_BUTTON_TYPE_CIRCLE,
     THE_DIVA_BUTTON_TYPE_CROSS,
     THE_DIVA_BUTTON_TYPE_SQUARE,
@@ -66,6 +66,7 @@ typedef struct {
     float distance;
     int32_t amplitude;
     int32_t frequency;
+    the_diva_bool_t hold;
 } the_diva_target_t;
 
 typedef struct {
@@ -99,7 +100,15 @@ typedef struct {
     the_diva_state_config_hit_window hit_window;
 } the_diva_state_config_t;
 
-typedef struct the_diva_state_t the_diva_state_t;
+typedef // TODO: make it opaque again later
+struct the_diva_state_t {
+    the_diva_chart_t* chart;
+    the_diva_state_config_t* config;
+    the_diva_time_t current_flying_time;
+    size_t flying_time_change_index;
+    the_diva_time_t current_time;
+    uint32_t holds[6];
+} the_diva_state_t;
 
 the_diva_result_t the_diva_state_config_fill_default(the_diva_state_config_t* out_state_config);
 
@@ -109,7 +118,7 @@ void the_diva_state_destroy(the_diva_state_t** state);
 
 void the_diva_state_tick(the_diva_state_t* state, the_diva_time_t time);
 void the_diva_state_press(the_diva_state_t* state, the_diva_button_type_t button, the_diva_time_t time);
-// todo: add the_diva_state_release for holds/slides
+void the_diva_state_release(the_diva_state_t* state, the_diva_button_type_t button, the_diva_time_t time);
 the_diva_time_t the_diva_state_current_flying_time(the_diva_state_t* state);
 the_diva_result_t the_diva_state_judgement_event_poll(the_diva_state_t* state, the_diva_target_judgement_event_t* out_target_judgement_event);
 

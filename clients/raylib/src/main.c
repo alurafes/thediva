@@ -51,12 +51,12 @@ the_diva_button_type_t determine_button_type(uint32_t type)
 {
     switch (type)
     {
-        case 0: case 4: case 8: case 18: return THE_DIVA_BUTTON_TYPE_TRIANGLE;
-        case 1: case 5: case 9: case 19: return THE_DIVA_BUTTON_TYPE_CIRCLE;
-        case 2: case 6: case 10: case 20: return THE_DIVA_BUTTON_TYPE_CROSS;
-        case 3: case 7: case 11: case 21: return THE_DIVA_BUTTON_TYPE_SQUARE;
-        case 12: return THE_DIVA_BUTTON_TYPE_SLIDE_LEFT;
-        case 13: return THE_DIVA_BUTTON_TYPE_SLIDE_RIGHT;
+        case 0: case 4: case 18: return THE_DIVA_BUTTON_TYPE_TRIANGLE;
+        case 1: case 5: case 19: return THE_DIVA_BUTTON_TYPE_CIRCLE;
+        case 2: case 6: case 20: return THE_DIVA_BUTTON_TYPE_CROSS;
+        case 3: case 7: case 21: return THE_DIVA_BUTTON_TYPE_SQUARE;
+        case 12: case 23: return THE_DIVA_BUTTON_TYPE_SLIDE_LEFT;
+        case 13: case 24: return THE_DIVA_BUTTON_TYPE_SLIDE_RIGHT;
         case 15: return THE_DIVA_BUTTON_TYPE_SLIDE_CHAIN_LEFT;
         case 16: return THE_DIVA_BUTTON_TYPE_SLIDE_CHAIN_RIGHT;
         default: return THE_DIVA_BUTTON_TYPE_TRIANGLE;
@@ -115,6 +115,7 @@ int main(int argc, char** argv)
                 .distance = command->parameters[4] / 1000.0f,
                 .amplitude = command->parameters[5],
                 .frequency = command->parameters[6],
+                .hold = command->parameters[0] >= 4 && command->parameters[0] <= 7 ? THE_DIVA_TRUE : THE_DIVA_FALSE
             };
             if (target_id > 0)
             {
@@ -212,6 +213,11 @@ int main(int argc, char** argv)
         if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_K)) the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CROSS, time);
         if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_L)) the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CIRCLE, time);
 
+        if (IsKeyReleased(KEY_W) || IsKeyReleased(KEY_I)) the_diva_state_release(state, THE_DIVA_BUTTON_TYPE_TRIANGLE, time);
+        if (IsKeyReleased(KEY_A) || IsKeyReleased(KEY_J)) the_diva_state_release(state, THE_DIVA_BUTTON_TYPE_SQUARE, time);
+        if (IsKeyReleased(KEY_S) || IsKeyReleased(KEY_K)) the_diva_state_release(state, THE_DIVA_BUTTON_TYPE_CROSS, time);
+        if (IsKeyReleased(KEY_D) || IsKeyReleased(KEY_L)) the_diva_state_release(state, THE_DIVA_BUTTON_TYPE_CIRCLE, time);
+
         the_diva_state_tick(state, time);
 
         BeginDrawing();
@@ -233,8 +239,8 @@ int main(int argc, char** argv)
                 : YELLOW;
                 
                 DrawRectangle(target->x - 5, target->y - 5, 10, 10, color);
-
                 DrawRectanglePro((Rectangle){.x = target->x, .y = target->y, .width = 2, .height = 10}, (Vector2){1, 10}, progress * -360.0f, WHITE);
+                if (target->hold == THE_DIVA_TRUE) DrawText("HOLD", target->x - 13, target->y + 6, 1, WHITE);
 
                 float x = progress * target->distance;
                 float y = sin(progress * PI * target->frequency) / 36.0f * target->amplitude;
@@ -266,6 +272,7 @@ int main(int argc, char** argv)
 
             DrawText("THE DIVA - raylib", 0, 0, 10, WHITE);
             DrawText(TextFormat("%lld", time), 0, 11, 10, WHITE);
+            DrawText(TextFormat("TRIANGLE: %d | CIRCLE: %d | CROSS: %d | SQUARE: %d\n", state->holds[0], state->holds[1], state->holds[2], state->holds[3]), 0, 22, 10, WHITE);
         }
 
         EndDrawing();

@@ -5,14 +5,6 @@
 
 #include <stdio.h>
 
-struct the_diva_state_t {
-    the_diva_chart_t* chart;
-    the_diva_state_config_t* config;
-    the_diva_time_t current_flying_time;
-    size_t flying_time_change_index;
-    the_diva_time_t current_time;
-};
-
 typedef struct the_diva_target_judgement_events_t {
     the_diva_target_judgement_event_t value;
     struct the_diva_target_judgement_events_t *next; 
@@ -66,15 +58,11 @@ the_diva_result_t the_diva_state_create(the_diva_chart_t* chart, the_diva_state_
     if (chart == NULL) return THE_DIVA_RESULT_INVALID_ARGUMENT;
     if (config == NULL) return THE_DIVA_RESULT_INVALID_ARGUMENT;
     
-    the_diva_state_t* state = malloc(sizeof(the_diva_state_t));
+    the_diva_state_t* state = calloc(1, sizeof(the_diva_state_t));
     if (state == NULL) return THE_DIVA_RESULT_ALLOCATION_FAILED;
 
     state->chart = chart;
     state->config = config;
-
-    state->current_flying_time = 0;
-    state->current_time = 0;
-    state->flying_time_change_index = 0;
 
     *out_state = state;
     return THE_DIVA_RESULT_OK;
@@ -132,6 +120,11 @@ void the_diva_state_tick(the_diva_state_t* state, the_diva_time_t time)
 void the_diva_state_press(the_diva_state_t* state, the_diva_button_type_t button, the_diva_time_t time)
 {
     the_diva_time_t input_time = time + state->config->calibration_offset;
+    
+    if (button <= THE_DIVA_BUTTON_TYPE_SLIDE_RIGHT && state->holds[button] > 0)
+    {
+        state->holds[button] += 1;
+    }
 
     // todo: instead of iterating the chart every time i should keep some index
     for (size_t i = 0; i < state->chart->targets_count; ++i)
@@ -163,6 +156,11 @@ void the_diva_state_press(the_diva_state_t* state, the_diva_button_type_t button
 
             other_target->judgement = judgement;
             queue_judgement_event(other_target, THE_DIVA_FALSE);
+
+            if (other_target->hold == THE_DIVA_TRUE && other_target->button_type <= THE_DIVA_BUTTON_TYPE_SLIDE_RIGHT && state->holds[other_target->button_type] == 0)
+            {
+                state->holds[other_target->button_type] += 1;
+            }
             return;
         }
 
@@ -179,6 +177,14 @@ void the_diva_state_press(the_diva_state_t* state, the_diva_button_type_t button
                 return;
             }
         }
+    }
+}
+
+void the_diva_state_release(the_diva_state_t* state, the_diva_button_type_t button, the_diva_time_t time)
+{
+    if (button <= THE_DIVA_BUTTON_TYPE_SLIDE_RIGHT && state->holds[button] > 0)
+    {
+        state->holds[button] -= 1;
     }
 }
 
