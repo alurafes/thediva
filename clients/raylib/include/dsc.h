@@ -25,7 +25,7 @@ typedef enum {
 typedef struct {
     uint32_t opcode;
     size_t parameters_count;
-    const uint32_t *parameters;
+    const int32_t *parameters;
 } the_diva_dsc_command_t;
 
 the_diva_dsc_result_t the_diva_dsc_read_from_buffer(const char* dsc_file_buffer, size_t dsc_file_buffer_size, the_diva_dsc_command_t *commands, size_t *commands_length);

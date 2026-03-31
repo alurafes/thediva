@@ -137,7 +137,7 @@ the_diva_dsc_result_t the_diva_dsc_read_from_buffer(const char* dsc_file_buffer,
             commands[read_commands - 1] = (the_diva_dsc_command_t){
                 .opcode = opcode,
                 .parameters_count = parameters_count,
-                .parameters = (uint32_t*)&dsc_file_buffer[i]
+                .parameters = (int32_t*)&dsc_file_buffer[i]
             };
         }
 

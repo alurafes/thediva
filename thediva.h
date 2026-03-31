@@ -64,8 +64,8 @@ typedef struct {
     float y;
     float angle;
     float distance;
-    uint32_t amplitude;
-    uint32_t frequency;
+    int32_t amplitude;
+    int32_t frequency;
 } the_diva_target_t;
 
 typedef struct {
