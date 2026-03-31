@@ -207,10 +207,10 @@ int main(int argc, char** argv)
     {
         the_diva_time_t time = game_clock_get_current_time_us();
 
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
-        {
-            the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_TRIANGLE, time);
-        }
+        if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_I)) the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_TRIANGLE, time);
+        if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_J)) the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_SQUARE, time);
+        if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_K)) the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CROSS, time);
+        if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_L)) the_diva_state_press(state, THE_DIVA_BUTTON_TYPE_CIRCLE, time);
 
         the_diva_state_tick(state, time);
 
@@ -223,10 +223,18 @@ int main(int argc, char** argv)
                 the_diva_target_t *target = &targets.items[i];
                 if (target->time > time) break;
                 if (target->judgement != THE_DIVA_TARGET_JUDGEMENT_NONE) continue;
-                
-                DrawRectangle(target->x - 5, target->y - 5, 10, 10, target->chord_size == 1 ? GREEN : PURPLE);
 
                 float progress = 1.0f - (time - target->time) / (float)the_diva_state_current_flying_time(state);
+
+                Color color = target->button_type == THE_DIVA_BUTTON_TYPE_TRIANGLE ? GREEN 
+                : target->button_type == THE_DIVA_BUTTON_TYPE_SQUARE ? PINK
+                : target->button_type == THE_DIVA_BUTTON_TYPE_CIRCLE ? RED
+                : target->button_type == THE_DIVA_BUTTON_TYPE_CROSS ? BLUE
+                : YELLOW;
+                
+                DrawRectangle(target->x - 5, target->y - 5, 10, 10, color);
+
+                DrawRectanglePro((Rectangle){.x = target->x, .y = target->y, .width = 2, .height = 10}, (Vector2){1, 10}, progress * -360.0f, WHITE);
 
                 float x = progress * target->distance;
                 float y = sin(progress * PI * target->frequency) / 36.0f * target->amplitude;
@@ -234,11 +242,30 @@ int main(int argc, char** argv)
                 float rotated_x = target->x + sin(target->angle) * x + cos(target->angle) * y;
                 float rotated_y = target->y - cos(target->angle) * x + sin(target->angle) * y;
 
-                DrawRectangle(rotated_x - 5, rotated_y - 5, 10, 10, RED);
+                if (target->chord_size > 1)
+                {
+                    size_t current_index = i - target->chord_start;
+                    // TODO: i need to unnest the chord first. Right now i am just connecting a line to the next element in the array
+                    size_t index_to_connect_to = current_index == target->chord_size - 1 ? target->chord_start : i + 1;
+                    the_diva_target_t *target_to_connect_to = &targets.items[index_to_connect_to];
+
+                    // TODO: this might be quite an expensive operation on weaker hardware. Let alone calculating sin/cos multiple times for ONE target. But two is a bit nuts. 
+                    // I need a global rewrite so I can keep track of "entities" and spawn them with some events from the thediva lib code.
+                    float other_x = progress * target_to_connect_to->distance;
+                    float other_y = sin(progress * PI * target_to_connect_to->frequency) / 36.0f * target_to_connect_to->amplitude;
+
+                    float other_rotated_x = target_to_connect_to->x + sin(target_to_connect_to->angle) * other_x + cos(target_to_connect_to->angle) * other_y;
+                    float other_rotated_y = target_to_connect_to->y - cos(target_to_connect_to->angle) * other_x + sin(target_to_connect_to->angle) * other_y;
+
+                    DrawLine(rotated_x, rotated_y, other_rotated_x, other_rotated_y, PURPLE);
+                }
+
+                DrawRectangle(rotated_x - 6, rotated_y - 6, 12, 12, WHITE);
+                DrawRectangle(rotated_x - 5, rotated_y - 5, 10, 10, color);
             }
 
-            DrawText("THE DIVA - raylib", 0, 0, 20, WHITE);
-            DrawText(TextFormat("%lld", time), 0, 30, 20, WHITE);
+            DrawText("THE DIVA - raylib", 0, 0, 10, WHITE);
+            DrawText(TextFormat("%lld", time), 0, 11, 10, WHITE);
         }
 
         EndDrawing();
