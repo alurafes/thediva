@@ -63,6 +63,92 @@ the_diva_button_type_t determine_button_type(uint32_t type)
     }
 }
 
+const char* judgement_name(the_diva_target_judgement_t judgement)
+{
+    switch (judgement)
+    {
+        case THE_DIVA_TARGET_JUDGEMENT_COOL: return "COOL";
+        case THE_DIVA_TARGET_JUDGEMENT_FINE: return "FINE";
+        case THE_DIVA_TARGET_JUDGEMENT_SAFE: return "SAFE";
+        case THE_DIVA_TARGET_JUDGEMENT_SAD:  return "SAD";
+        case THE_DIVA_TARGET_JUDGEMENT_MISS: return "MISS";
+        default: return "";
+    }
+}
+
+Vector2 note_position(const the_diva_target_t* target, float progress)
+{
+    float x = progress * target->distance;
+    float y = sinf(progress * PI * target->frequency) / 36.0f * target->amplitude;
+ 
+    return (Vector2){
+        .x = target->x + sinf(target->angle) * x + cosf(target->angle) * y,
+        .y = target->y - cosf(target->angle) * x + sinf(target->angle) * y
+    };
+}
+ 
+float note_progress(the_diva_state_t* state, size_t index, the_diva_time_t time)
+{
+    const the_diva_target_t* target = &state->chart->targets[index];
+    the_diva_time_t hit_time = the_diva_state_target_hit_time(state, index);
+    the_diva_time_t flight = hit_time - target->time;
+    if (flight <= 0) return 0.0f;
+    return (hit_time - time) / (float)flight;
+}
+
+Color button_color(the_diva_button_type_t button)
+{
+    switch (button)
+    {
+        case THE_DIVA_BUTTON_TYPE_TRIANGLE: return GREEN;
+        case THE_DIVA_BUTTON_TYPE_CIRCLE:   return RED;
+        case THE_DIVA_BUTTON_TYPE_CROSS:    return SKYBLUE;
+        case THE_DIVA_BUTTON_TYPE_SQUARE:   return PINK;
+        default:                            return ORANGE;
+    }
+}
+ 
+void draw_button_symbol(the_diva_button_type_t button, Vector2 center, float radius, float thickness, Color color)
+{
+    switch (button)
+    {
+        case THE_DIVA_BUTTON_TYPE_TRIANGLE:
+            DrawPolyLinesEx(center, 3, radius, -90.0f, thickness, color);
+            break;
+ 
+        case THE_DIVA_BUTTON_TYPE_CIRCLE:
+            DrawRing(center, radius - thickness * 0.5f, radius + thickness * 0.5f, 0.0f, 360.0f, 32, color);
+            break;
+ 
+        case THE_DIVA_BUTTON_TYPE_CROSS:
+        {
+            float d = radius * 0.75f;
+            DrawLineEx((Vector2){ center.x - d, center.y - d }, (Vector2){ center.x + d, center.y + d }, thickness, color);
+            DrawLineEx((Vector2){ center.x - d, center.y + d }, (Vector2){ center.x + d, center.y - d }, thickness, color);
+            break;
+        }
+ 
+        case THE_DIVA_BUTTON_TYPE_SQUARE:
+            DrawPolyLinesEx(center, 4, radius, 45.0f, thickness, color);
+            break;
+ 
+        case THE_DIVA_BUTTON_TYPE_SLIDE_LEFT:
+        case THE_DIVA_BUTTON_TYPE_SLIDE_CHAIN_LEFT:
+            DrawPoly(center, 3, radius + thickness * 0.5f, 180.0f, color);
+            break;
+ 
+        case THE_DIVA_BUTTON_TYPE_SLIDE_RIGHT:
+        case THE_DIVA_BUTTON_TYPE_SLIDE_CHAIN_RIGHT:
+            DrawPoly(center, 3, radius + thickness * 0.5f, 0.0f, color);
+            break;
+ 
+        default:
+            DrawCircleV(center, radius + thickness * 0.5f, color);
+            break;
+    }
+}
+
+
 int main(int argc, char** argv)
 {
     if (argc != 2) 
@@ -106,7 +192,6 @@ int main(int argc, char** argv)
                 .id = target_id,
                 .button_type = determine_button_type(command->parameters[0]),
                 .time = last_time,
-                .judgement = THE_DIVA_TARGET_JUDGEMENT_NONE,
                 .chord_start = target_id,
                 .chord_size = 1,
                 .x = command->parameters[1] / 1000.0f,
@@ -203,6 +288,10 @@ int main(int argc, char** argv)
 
     InitWindow(480, 272, "THE DIVA - raylib");
     game_clock_init();
+
+    const char* last_judgement_text = "";
+    the_diva_bool_t last_judgement_wrong = THE_DIVA_FALSE;
+    uint32_t combo = 0;
     
     while (!WindowShouldClose())
     {
@@ -220,6 +309,28 @@ int main(int argc, char** argv)
 
         the_diva_state_tick(state, time);
 
+        the_diva_state_event_t event;
+        while (the_diva_state_event_poll(state, &event) == THE_DIVA_RESULT_OK)
+        {
+            if (event.type == THE_DIVA_STATE_EVENT_JUDGEMENT)
+            {
+                the_diva_target_judgement_t judgement = event.event.judgement.judgement;
+                last_judgement_text = judgement_name(judgement);
+                last_judgement_wrong = event.event.judgement.wrong;
+ 
+                if (judgement == THE_DIVA_TARGET_JUDGEMENT_MISS || judgement == THE_DIVA_TARGET_JUDGEMENT_SAD || event.event.judgement.wrong)
+                {
+                    combo = 0;
+                }
+                else
+                {
+                    combo++;
+                }
+            }
+        }
+
+        the_diva_time_t song_time = time + config.calibration_offset;
+
         BeginDrawing();
         {
             ClearBackground(BLACK);
@@ -228,51 +339,36 @@ int main(int argc, char** argv)
             {
                 the_diva_target_t *target = &targets.items[i];
                 if (target->time > time) break;
-                if (target->judgement != THE_DIVA_TARGET_JUDGEMENT_NONE) continue;
+                if (the_diva_state_target_judgement(state, i) != THE_DIVA_TARGET_JUDGEMENT_NONE) continue;
 
                 float progress = 1.0f - (time - target->time) / (float)the_diva_state_current_flying_time(state);
-
-                Color color = target->button_type == THE_DIVA_BUTTON_TYPE_TRIANGLE ? GREEN 
-                : target->button_type == THE_DIVA_BUTTON_TYPE_SQUARE ? PINK
-                : target->button_type == THE_DIVA_BUTTON_TYPE_CIRCLE ? RED
-                : target->button_type == THE_DIVA_BUTTON_TYPE_CROSS ? BLUE
-                : YELLOW;
+                Color color = button_color(target->button_type);
+                Vector2 target_center = { target->x, target->y };
                 
-                DrawRectangle(target->x - 5, target->y - 5, 10, 10, color);
+                draw_button_symbol(target->button_type, target_center, 7.0f, 4.0f, Fade(color, 0.5f));
                 DrawRectanglePro((Rectangle){.x = target->x, .y = target->y, .width = 2, .height = 10}, (Vector2){1, 10}, progress * -360.0f, WHITE);
                 if (target->hold == THE_DIVA_TRUE) DrawText("HOLD", target->x - 13, target->y + 6, 1, WHITE);
 
-                float x = progress * target->distance;
-                float y = sin(progress * PI * target->frequency) / 36.0f * target->amplitude;
-
-                float rotated_x = target->x + sin(target->angle) * x + cos(target->angle) * y;
-                float rotated_y = target->y - cos(target->angle) * x + sin(target->angle) * y;
+                Vector2 position = note_position(target, progress);
 
                 if (target->chord_size > 1)
                 {
-                    size_t current_index = i - target->chord_start;
-                    // TODO: i need to unnest the chord first. Right now i am just connecting a line to the next element in the array
-                    size_t index_to_connect_to = current_index == target->chord_size - 1 ? target->chord_start : i + 1;
-                    the_diva_target_t *target_to_connect_to = &targets.items[index_to_connect_to];
-
-                    // TODO: this might be quite an expensive operation on weaker hardware. Let alone calculating sin/cos multiple times for ONE target. But two is a bit nuts. 
-                    // I need a global rewrite so I can keep track of "entities" and spawn them with some events from the thediva lib code.
-                    float other_x = progress * target_to_connect_to->distance;
-                    float other_y = sin(progress * PI * target_to_connect_to->frequency) / 36.0f * target_to_connect_to->amplitude;
-
-                    float other_rotated_x = target_to_connect_to->x + sin(target_to_connect_to->angle) * other_x + cos(target_to_connect_to->angle) * other_y;
-                    float other_rotated_y = target_to_connect_to->y - cos(target_to_connect_to->angle) * other_x + sin(target_to_connect_to->angle) * other_y;
-
-                    DrawLine(rotated_x, rotated_y, other_rotated_x, other_rotated_y, PURPLE);
+                    size_t next = i + 1 < target->chord_start + target->chord_size ? i + 1 : target->chord_start;
+                    if (next != i && the_diva_state_target_judgement(state, next) == THE_DIVA_TARGET_JUDGEMENT_NONE)
+                    {
+                        Vector2 other = note_position(&targets.items[next], note_progress(state, next, song_time));
+                        DrawLineV(position, other, PURPLE);
+                    }
                 }
 
-                DrawRectangle(rotated_x - 6, rotated_y - 6, 12, 12, WHITE);
-                DrawRectangle(rotated_x - 5, rotated_y - 5, 10, 10, color);
+                draw_button_symbol(target->button_type, position, 7.0f, 6.0f, WHITE);
+                draw_button_symbol(target->button_type, position, 7.0f, 4.0f, color);
             }
 
             DrawText("THE DIVA - raylib", 0, 0, 10, WHITE);
             DrawText(TextFormat("%lld", time), 0, 11, 10, WHITE);
             DrawText(TextFormat("TRIANGLE: %d | CIRCLE: %d | CROSS: %d | SQUARE: %d\n", state->holds[0], state->holds[1], state->holds[2], state->holds[3]), 0, 22, 10, WHITE);
+            DrawText(TextFormat("%s%s  combo %u", last_judgement_wrong ? "WRONG " : "", last_judgement_text, combo), 0, 33, 10, WHITE);
         }
 
         EndDrawing();

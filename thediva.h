@@ -57,7 +57,6 @@ typedef struct {
     uint32_t id;
     the_diva_button_type_t button_type;
     the_diva_time_t time;
-    the_diva_target_judgement_t judgement;
     size_t chord_start;
     size_t chord_size;
     float x;
@@ -70,7 +69,8 @@ typedef struct {
 } the_diva_target_t;
 
 typedef struct {
-    the_diva_target_t* target;
+    size_t target_index;
+    the_diva_target_judgement_t judgement;
     the_diva_bool_t wrong;
 } the_diva_target_judgement_event_t;
 
@@ -100,14 +100,39 @@ typedef struct {
     the_diva_state_config_hit_window hit_window;
 } the_diva_state_config_t;
 
+typedef struct the_diva_target_order_t {
+    the_diva_time_t hit_time;
+    size_t index;
+} the_diva_target_order_t;
+
+typedef enum the_diva_state_event_type_t {
+    THE_DIVA_STATE_EVENT_JUDGEMENT,
+} the_diva_state_event_type_t;
+
+typedef struct the_diva_state_event_t {
+    the_diva_state_event_type_t type;
+    the_diva_time_t time;
+    union {
+        the_diva_target_judgement_event_t judgement;
+    } event;
+} the_diva_state_event_t;
+
 typedef // TODO: make it opaque again later
 struct the_diva_state_t {
     the_diva_chart_t* chart;
+    the_diva_target_order_t* order;
     the_diva_state_config_t* config;
     the_diva_time_t current_flying_time;
     size_t flying_time_change_index;
     the_diva_time_t current_time;
     uint32_t holds[6];
+    the_diva_state_event_t* events;
+    size_t events_count;
+    size_t events_capacity;
+    size_t events_read;
+    size_t order_cursor;
+    the_diva_time_t* hit_times;
+    the_diva_target_judgement_t* judgements;
 } the_diva_state_t;
 
 the_diva_result_t the_diva_state_config_fill_default(the_diva_state_config_t* out_state_config);
@@ -120,7 +145,9 @@ void the_diva_state_tick(the_diva_state_t* state, the_diva_time_t time);
 void the_diva_state_press(the_diva_state_t* state, the_diva_button_type_t button, the_diva_time_t time);
 void the_diva_state_release(the_diva_state_t* state, the_diva_button_type_t button, the_diva_time_t time);
 the_diva_time_t the_diva_state_current_flying_time(the_diva_state_t* state);
-the_diva_result_t the_diva_state_judgement_event_poll(the_diva_state_t* state, the_diva_target_judgement_event_t* out_target_judgement_event);
+the_diva_target_judgement_t the_diva_state_target_judgement(const the_diva_state_t* state, size_t target_index);
+the_diva_time_t the_diva_state_target_hit_time(const the_diva_state_t* state, size_t target_index);
+the_diva_result_t the_diva_state_event_poll(the_diva_state_t* state, the_diva_state_event_t* out_event);
 
 #ifdef __cplusplus
 }
